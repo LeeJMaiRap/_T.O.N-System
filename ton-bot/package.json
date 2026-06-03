@@ -1,0 +1,11 @@
+{
+  "name": "ton-public-bot",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "health": "node -e \"fetch('http://127.0.0.1:18081/health').then(r=>r.text()).then(console.log).catch(e=>{console.error(e.message);process.exit(1)})\""
+  },
+  "dependencies": {}
+}

@@ -1,0 +1,9 @@
+{
+  "start": "Xin chào! Tôi là trợ lý tra cứu thông tin từ kho tri thức.\n\nBạn có thể hỏi các câu như:\n- Dự án thực tập là gì?\n- Mục tiêu của hệ thống là gì?\n- Công nghệ nào được sử dụng?",
+  "help": "Bạn hãy nhập câu hỏi bằng tiếng Việt. Tôi sẽ tra cứu trong kho tri thức và trả lời ngắn gọn, dễ hiểu.",
+  "notFound": "Tôi chưa tìm thấy thông tin liên quan trong cơ sở tri thức. Bạn có thể hỏi theo cách khác không?",
+  "backendError": "Hiện hệ thống chưa truy xuất được dữ liệu. Vui lòng thử lại sau.",
+  "busy": "Yêu cầu của bạn đang được xử lý. Vui lòng chờ trong giây lát.",
+  "queueFull": "Hệ thống đang có nhiều người dùng. Vui lòng thử lại sau ít phút.",
+  "rateLimited": "Bạn gửi câu hỏi hơi nhanh. Vui lòng chờ vài giây rồi thử lại."
+}

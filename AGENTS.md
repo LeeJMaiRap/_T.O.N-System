@@ -216,3 +216,16 @@ This is a starting point. Add your own conventions, style, and rules as you figu
 ## Related
 
 - [Default AGENTS.md](/reference/AGENTS.default)
+
+## Telegram → NotebookLM Knowledge Gateway
+
+When a user chats through Telegram and asks about the personal knowledge base, internship report, project details, or document-backed facts, use NotebookLM before answering.
+
+Command:
+
+```bash
+/data/workspace/bin/ask_notebooklm "<focused standalone Vietnamese question>"
+```
+
+Answer from NotebookLM output only. If no relevant result, say:
+`Tôi chưa tìm thấy thông tin liên quan trong cơ sở tri thức. Bạn có thể hỏi theo cách khác không?`

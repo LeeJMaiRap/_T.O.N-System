@@ -1,0 +1,45 @@
+{
+  "telegram": {
+    "tokenFile": "/data/.openclaw/secrets/ton-public-telegram-bot-token",
+    "mode": "polling",
+    "allowedUsers": ["5168072926"],
+    "adminUsers": ["5168072926"]
+  },
+  "knowledge": {
+    "provider": "notebooklm",
+    "defaultNotebookId": "4a0c4275-6631-4a1f-aea4-bf5c3e139bb9",
+    "notebooks": [
+      {
+        "id": "027c86d0-5902-4980-8b6b-ce95738c95e1",
+        "name": "TON system knowledge",
+        "keywords": ["ton", "workflow", "telegram", "openclaw", "notebooklm", "public bot", "kiến trúc", "cài đặt", "mvp", "provider", "cache", "queue", "concurrency"]
+      },
+      {
+        "id": "4a0c4275-6631-4a1f-aea4-bf5c3e139bb9",
+        "name": "Internship report",
+        "keywords": ["thực tập", "dự án", "báo cáo", "project manager agent", "pmbok", "agile", "scrum", "git flow"]
+      }
+    ],
+    "queryCommand": "/data/workspace/bin/ask_notebooklm",
+    "maxSentences": 5,
+    "language": "vi"
+  },
+  "queue": {
+    "maxConcurrentQueries": 3,
+    "maxQueueSize": 100,
+    "perUserMaxQueued": 2
+  },
+  "rateLimit": {
+    "perUserMinIntervalMs": 3000,
+    "globalPerMinute": 30
+  },
+  "cache": {
+    "enabled": true,
+    "ttlSeconds": 86400,
+    "maxEntries": 1000
+  },
+  "server": {
+    "host": "127.0.0.1",
+    "port": 18081
+  }
+}

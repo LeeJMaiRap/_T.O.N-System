@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+export PATH="$PATH:/root/.local/bin"
+NOTEBOOK_ID="${NOTEBOOKLM_NOTEBOOK_ID:-4a0c4275-6631-4a1f-aea4-bf5c3e139bb9}"
+if [ "$#" -lt 1 ]; then
+  echo 'Usage: ask_notebooklm "question"' >&2
+  exit 2
+fi
+nlm notebook query "$NOTEBOOK_ID" "$*"
