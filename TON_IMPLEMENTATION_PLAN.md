@@ -589,6 +589,115 @@ Hướng tối ưu theo thứ tự ưu tiên:
    - theo dõi cache hit/miss
    - tính P50/P95 để biết tối ưu có hiệu quả không
 
+## 19. Trạng thái triển khai thực tế hiện tại
+
+Cập nhật: 2026-06-03 04:28 UTC
+
+User đã test lại các câu hỏi từng lỗi và xác nhận bot đã trả lời chính xác.
+
+### Đã hoàn thành
+
+```text
+Phase 0 — Chuẩn bị: hoàn thành
+Phase 1 — MVP service riêng: đã triển khai và đang chạy ổn định ở mức test nội bộ
+```
+
+Các hạng mục Phase 1 đã xong:
+
+- Tạo bot Telegram thứ hai cho public TON bot: `@kho_tri_thuc_toan_dan_bot`.
+- Giữ bot Telegram hiện tại cho OpenClaw admin/internal.
+- Public bot đang allowlist user/admin trước.
+- Tạo service riêng tại `/data/workspace/ton-bot`.
+- Implement Telegram polling.
+- Implement `/start` và `/help`.
+- Implement NotebookLMProvider.
+- Implement routing nhiều notebook:
+  - TON/system notebook: `027c86d0-5902-4980-8b6b-ce95738c95e1`.
+  - Internship report notebook: `4a0c4275-6631-4a1f-aea4-bf5c3e139bb9`.
+- Implement sanitizer để chặn command/path/log/token thật nhưng không chặn nhầm nội dung hợp lệ.
+- Implement queue concurrency 3.
+- Implement rate limit cơ bản.
+- Implement cache TTL 24h.
+- Implement persistent cache.
+- Implement prefetch questions.
+- Implement startup warm-up.
+- Implement warm-up endpoint.
+- Implement metrics endpoint.
+- Setup cron warm-up mỗi 15 phút.
+- Test câu hỏi TON workflow: đã đúng.
+- Test câu hỏi plan update TON: đã đúng sau khi cập nhật plan/status.
+- Test câu hỏi từ notebook báo cáo thực tập: đã đúng.
+
+### Đang ở bước nào?
+
+Hệ thống đang ở cuối Phase 1 và bắt đầu bước đầu của Phase 2.
+
+```text
+Phase 1: MVP service riêng đã hoàn thành ở mức test nội bộ.
+Phase 2: OpenClaw integration đã bắt đầu một phần qua health endpoint, metrics endpoint và cron warm-up.
+```
+
+### Chưa hoàn thành
+
+Các phần còn lại của Phase 2:
+
+- Tạo start/restart script bền vững cho TON bot.
+- Tạo cơ chế quản lý process ổn định thay vì chạy thủ công bằng exec session.
+- Tạo healthcheck cron có cảnh báo admin nếu `/health` lỗi.
+- Tạo cảnh báo khi NotebookLM auth expired.
+- Chuẩn hóa log rotation.
+- Cập nhật README vận hành.
+
+Các phần Phase 3 chưa làm:
+
+- Load test 10–100 user.
+- Hardening public mode.
+- Chính sách mở rộng allowlist hoặc public access.
+- Tối ưu rate limit theo thực tế.
+- Kiểm tra queue khi nhiều user cùng hỏi.
+
+Các phần Phase 4 chưa làm:
+
+- Tối ưu sâu NotebookLM latency.
+- Nghiên cứu worker/daemon giảm overhead CLI.
+- Mở rộng prefetch/synonym cache.
+- Theo dõi P50/P95 dài hạn.
+
+### Đề xuất bước tiếp theo
+
+Bước tiếp theo nên là hoàn thiện Phase 2 trước khi mở rộng user:
+
+1. Tạo script quản lý service bền vững:
+
+```text
+/data/workspace/ton-bot/bin/start
+/data/workspace/ton-bot/bin/stop
+/data/workspace/ton-bot/bin/restart
+/data/workspace/ton-bot/bin/status
+```
+
+2. Tạo healthcheck cron:
+
+```text
+Mỗi 5 phút gọi http://127.0.0.1:18081/health
+Nếu lỗi hoặc provider != ok → báo admin/internal OpenClaw
+```
+
+3. Tạo auth-expired detection:
+
+```text
+Nếu NotebookLM auth expired → gửi cảnh báo admin, không gửi lỗi kỹ thuật cho public user
+```
+
+4. Chuẩn hóa logs:
+
+```text
+ton-bot/logs/ton-bot.log
+log rotation hoặc cleanup định kỳ
+```
+
+5. Sau khi Phase 2 ổn mới làm Phase 3 load test.
+
 ## 18. Tiêu chí hoàn thành MVP
 
 MVP đạt khi:
