@@ -7,7 +7,8 @@ const TECH_PATTERNS = [
   /run ['"]?nlm login/i,
   /traceback/i,
   /stack trace/i,
-  /token/i,
+  /\b[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\b/i,
+  /bot\s*token\s*[:=]/i,
   /error:/i
 ];
 
