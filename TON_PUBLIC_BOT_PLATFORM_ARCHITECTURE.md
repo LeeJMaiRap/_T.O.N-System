@@ -34,7 +34,7 @@ Policy / Response Template Layer
   ↓
 Knowledge Query Service
   ↓
-NotebookLM hiện tại / Gemini RAG tương lai
+NotebookLM core lâu dài / provider dự phòng nếu cần
   ↓
 Sanitizer
   ↓
@@ -269,9 +269,8 @@ Bot không cần biết provider là:
 
 ```text
 NotebookLM
-Gemini RAG
-Local vector DB
-Postgres full-text search
+NotebookLM optimized
+Provider dự phòng nếu sau này có yêu cầu mới
 ```
 
 ## 11. NotebookLMProvider hiện tại
@@ -308,10 +307,10 @@ Nhược điểm:
 - query có thể chậm
 - concurrency kém hơn API thật
 
-## 12. GeminiRagProvider tương lai
+## 12. NotebookLM optimization / provider dự phòng
 
 ```ts
-class GeminiRagProvider implements KnowledgeProvider {
+class FallbackProvider implements KnowledgeProvider {
   async query(question: string): Promise<KnowledgeAnswer> {
     const chunks = await retriever.search(question)
     const answer = await gemini.generate({
@@ -368,7 +367,7 @@ Factory:
 ```ts
 function createKnowledgeProvider(name: string): KnowledgeProvider {
   if (name === "notebooklm") return new NotebookLMProvider()
-  if (name === "gemini-rag") return new GeminiRagProvider()
+  if (name === "gemini-rag") return new FallbackProvider()
   throw new Error(`Unknown provider: ${name}`)
 }
 ```
@@ -381,7 +380,7 @@ Nếu hard-code NotebookLM:
 Telegram bot → notebooklm CLI trực tiếp
 ```
 
-Sau này đổi sang Gemini RAG phải sửa nhiều chỗ.
+Sau này tối ưu hoặc thay đổi provider dự phòng sẽ phải sửa nhiều chỗ nếu không có abstraction.
 
 Nếu dùng abstraction:
 
@@ -394,7 +393,7 @@ Thì chỉ thay provider.
 Lợi ích:
 
 - không khóa chết vào NotebookLM
-- đổi sang Gemini RAG dễ
+- tối ưu NotebookLM hoặc đổi provider dự phòng dễ nếu sau này có yêu cầu mới
 - test backend dễ
 - mock provider để test bot không cần gọi Google
 - scale từng phần
@@ -502,10 +501,12 @@ admin dashboard/log summary
 warm-up cron
 ```
 
-### Giai đoạn 3 — production
+### Giai đoạn 3 — production với NotebookLM core
 
 ```text
-Gemini API + RAG/vector DB
+NotebookLM core lâu dài
+cache/prefetch/warm-up
+worker/daemon giảm CLI overhead nếu khả thi
 multi-source documents
 role-based admin/user
 backup/monitoring
@@ -545,7 +546,7 @@ Hướng đúng:
 ```text
 Public Telegram bot → service riêng
 Admin Telegram/OpenClaw → OpenClaw agent
-Knowledge provider → NotebookLM hiện tại, Gemini RAG tương lai
+Knowledge provider → NotebookLM core lâu dài, provider khác chỉ là dự phòng nếu có yêu cầu mới
 ```
 
 Thiết kế này xử lý được:

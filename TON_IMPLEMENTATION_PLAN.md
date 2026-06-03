@@ -13,7 +13,7 @@ Telegram → OpenClaw agent → NotebookLM → Telegram
 thành kiến trúc public bot platform:
 
 ```text
-Telegram user → TON Bot Service → Knowledge Provider → NotebookLM/Gemini RAG → Telegram reply
+Telegram user → TON Bot Service → Knowledge Provider → NotebookLM core → Telegram reply
 ```
 
 OpenClaw vẫn giữ vai trò core quản lý:
@@ -30,7 +30,7 @@ OpenClaw → config, secrets, logs, healthcheck, cron warm-up, admin/debug, depl
 - Có queue, rate limit, per-user lock để chịu tải 10–100 user.
 - Có cache để giảm delay và giảm tải NotebookLM.
 - Không hard-code NotebookLM; dùng provider abstraction.
-- NotebookLM dùng cho giai đoạn đầu; Gemini RAG là hướng production.
+- NotebookLM là core lâu dài; ưu tiên tối ưu NotebookLM thay vì chuyển sang provider khác.
 - OpenClaw quản lý hệ thống, không trực tiếp làm public serving layer chính.
 
 ## 3. Scope MVP
@@ -57,7 +57,7 @@ MVP chưa làm:
 
 ```text
 - semantic cache
-- Gemini RAG
+- provider dự phòng nếu sau này có yêu cầu mới
 - dashboard UI
 - multi-document admin upload
 - phân quyền phức tạp
@@ -223,7 +223,7 @@ NotebookLMProvider hiện tại:
 - trả KnowledgeAnswer
 ```
 
-GeminiRagProvider tương lai:
+FallbackProvider tương lai:
 
 ```text
 - nhận question
@@ -477,14 +477,23 @@ Khuyến nghị: **Hướng B** cho production. Hướng A dùng nếu muốn nh
 - Load test giả lập 10–100 câu hỏi.
 - Điều chỉnh concurrency/cache/rate limit.
 
-### Phase 4 — RAG production
+### Phase 4 — Tối ưu NotebookLM lâu dài
 
-- Chuẩn bị Gemini API.
-- Tạo vector DB.
-- Import tài liệu.
-- Implement GeminiRagProvider.
-- So sánh chất lượng với NotebookLM.
-- Switch config provider từ `notebooklm` sang `gemini-rag` khi ổn.
+Mục tiêu Phase 4 không phải chuyển sang Gemini RAG. NotebookLM tiếp tục là core tri thức lâu dài.
+
+Các việc cần làm:
+
+- Giữ NotebookLM là provider chính.
+- Tối ưu latency câu hỏi chưa có cache.
+- Giảm overhead gọi CLI bằng worker/daemon local nếu khả thi.
+- Duy trì phiên NotebookLM bằng warm-up cron.
+- Tối ưu prompt truy vấn ngắn, rõ notebook, giới hạn số câu trả lời.
+- Tăng cache hit bằng exact cache + synonym map + semantic-like cache nội bộ.
+- Tạo bộ câu hỏi thường gặp để prefetch/cache trước.
+- Theo dõi latency P50/P95 để điều chỉnh concurrency và queue.
+- Cảnh báo sớm khi auth NotebookLM hết hạn.
+
+Gemini RAG chỉ là phương án dự phòng nghiên cứu, không nằm trong lộ trình chính hiện tại.
 
 ## 16. Quyết định cần người dùng duyệt
 
@@ -505,9 +514,10 @@ Khuyến nghị cho an toàn:
 - Giữ bot hiện tại cho OpenClaw admin/internal.
 - Public bot giai đoạn đầu allowlist admin user trước.
 - Sau test ổn mới mở rộng cho người dân.
-- Provider ban đầu: NotebookLM.
+- Provider core lâu dài: NotebookLM.
 - Concurrency ban đầu: 3.
 - Cache TTL: 24h.
+- Tối ưu NotebookLM là hướng chính, không chuyển Gemini RAG nếu chưa có yêu cầu mới.
 ```
 
 ## 18. Quyết định đã được duyệt
@@ -520,12 +530,64 @@ User đã đồng ý với khuyến nghị:
 - Tạo bot Telegram thứ hai cho public TON bot.
 - Giữ bot hiện tại cho OpenClaw admin/internal.
 - Public bot giai đoạn đầu allowlist user/admin trước.
-- Provider ban đầu: NotebookLM.
+- Provider core lâu dài: NotebookLM.
 - Concurrency ban đầu: 3.
 - Cache TTL: 24h.
+- Tối ưu NotebookLM là hướng chính, không chuyển Gemini RAG nếu chưa có yêu cầu mới.
 ```
 
 Bước tiếp theo cần token cho bot Telegram thứ hai để triển khai MVP.
+
+## 18. Tối ưu latency khi vẫn dùng NotebookLM
+
+Hiện câu hỏi chưa có cache có thể mất khoảng 10 giây do các lớp sau:
+
+```text
+Telegram polling → bot handler → spawn CLI nlm → NotebookLM xử lý → parse JSON → Telegram reply
+```
+
+Mục tiêu tối ưu:
+
+```text
+cache hit: < 1 giây
+cache miss P50: 4–7 giây nếu NotebookLM phản hồi tốt
+cache miss P95: theo dõi thực tế, tránh vượt 15–20 giây
+```
+
+Hướng tối ưu theo thứ tự ưu tiên:
+
+1. **Cache mạnh hơn**
+   - exact normalized cache TTL 24h
+   - synonym map cho câu phổ biến
+   - prefetch câu hỏi hay gặp khi service start
+
+2. **Warm-up NotebookLM**
+   - cron/query nhẹ mỗi 10–15 phút
+   - phát hiện auth expired sớm
+   - giảm cold start
+
+3. **Giảm overhead CLI**
+   - hiện mỗi query spawn `nlm` process mới
+   - nghiên cứu daemon/worker giữ runtime ấm
+   - nếu CLI không hỗ trợ daemon ổn định, giữ CLI nhưng dùng cache/prefetch để giảm số lần gọi
+
+4. **Routing notebook chính xác**
+   - chọn đúng notebook trước khi gọi NotebookLM
+   - tránh hỏi sai notebook gây trả lời sai hoặc phải hỏi lại
+
+5. **Prompt ngắn và ổn định**
+   - thêm “Trả lời ngắn, tối đa 5 câu”
+   - tránh prompt dài làm NotebookLM xử lý lâu
+
+6. **Queue + concurrency hợp lý**
+   - concurrency ban đầu 3
+   - nếu NotebookLM chậm hoặc giới hạn, giảm xuống 2
+   - nếu ổn định, thử tăng 4–5 sau load test
+
+7. **Metrics latency**
+   - ghi `latencyMs` theo từng query
+   - theo dõi cache hit/miss
+   - tính P50/P95 để biết tối ưu có hiệu quả không
 
 ## 18. Tiêu chí hoàn thành MVP
 
