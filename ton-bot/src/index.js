@@ -7,6 +7,9 @@ import { RequestQueue } from './queue/request-queue.js';
 import { RateLimiter } from './queue/rate-limit.js';
 import { handleMessage } from './bot/message-handler.js';
 import { createLogger } from './observability/logger.js';
+import { Metrics } from './observability/metrics.js';
+import { normalizeQuestion } from './core/normalizer.js';
+import { sanitizeAnswer, isTechnicalFailure } from './core/sanitizer.js';
 
 const root = new URL('..', import.meta.url).pathname;
 const config = JSON.parse(fs.readFileSync(`${root}/config/bot.config.json`, 'utf8'));
@@ -19,9 +22,10 @@ const provider = createKnowledgeProvider(config.knowledge, logger);
 const cache = new AnswerCache(config.cache);
 const queue = new RequestQueue(config.queue, logger);
 const rateLimiter = new RateLimiter(config.rateLimit);
+const metrics = new Metrics();
 const startedAt = Date.now();
 
-const state = { config, templates, bot, provider, cache, queue, rateLimiter, logger };
+const state = { config, templates, bot, provider, cache, queue, rateLimiter, logger, metrics };
 
 function isAllowed(userId) {
   const allowed = config.telegram.allowedUsers || [];
@@ -44,6 +48,30 @@ async function processUpdate(update) {
   }
 }
 
+async function warmup(reason = 'manual') {
+  const questionsFile = config.cache.prefetchQuestionsFile;
+  let questions = [];
+  try { questions = JSON.parse(fs.readFileSync(questionsFile, 'utf8')); } catch {}
+  const results = [];
+  for (const q of questions) {
+    const key = normalizeQuestion(q);
+    if (cache.get(key)) { results.push({ question: q, status: 'cache_hit' }); continue; }
+    const started = Date.now();
+    try {
+      const result = await provider.query(q, { language: 'vi', maxSentences: config.knowledge.maxSentences || 5 });
+      let answer = sanitizeAnswer(result.answer || '');
+      if (!answer || isTechnicalFailure(answer)) throw new Error('sanitized_empty');
+      cache.set(key, { answer, sources: result.sources || [] });
+      results.push({ question: q, status: 'ok', latencyMs: Date.now() - started, notebook: result.notebook });
+    } catch (err) {
+      results.push({ question: q, status: 'error', error: err.message, latencyMs: Date.now() - started });
+      logger.error('warmup_error', { reason, question: q, error: err.message });
+    }
+  }
+  logger.info('warmup_done', { reason, results: results.map(r => ({ status: r.status, latencyMs: r.latencyMs, notebook: r.notebook })) });
+  return results;
+}
+
 function startHealthServer() {
   const server = http.createServer(async (req, res) => {
     if (req.url === '/health') {
@@ -64,7 +92,13 @@ function startHealthServer() {
     }
     if (req.url === '/metrics') {
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-      res.end(JSON.stringify({ cache: cache.stats(), queue: queue.stats(), rateLimit: rateLimiter.stats() }, null, 2));
+      res.end(JSON.stringify({ metrics: metrics.snapshot(), cache: cache.stats(), queue: queue.stats(), rateLimit: rateLimiter.stats() }, null, 2));
+      return;
+    }
+    if (req.url === '/warmup') {
+      const results = await warmup('http');
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ ok: true, results }, null, 2));
       return;
     }
     res.writeHead(404); res.end('not found');
@@ -76,5 +110,6 @@ function startHealthServer() {
 
 startHealthServer();
 logger.info('ton_bot_starting', { username: 'unknown' });
+warmup('startup').catch(err => logger.error('warmup_startup_error', { error: err.message }));
 await bot.deleteWebhook();
 bot.poll(processUpdate);

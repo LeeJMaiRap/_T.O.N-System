@@ -36,7 +36,9 @@
   "cache": {
     "enabled": true,
     "ttlSeconds": 86400,
-    "maxEntries": 1000
+    "maxEntries": 1000,
+    "persistFile": "/data/workspace/ton-bot/data/cache.json",
+    "prefetchQuestionsFile": "/data/workspace/ton-bot/config/prefetch.questions.json"
   },
   "server": {
     "host": "127.0.0.1",

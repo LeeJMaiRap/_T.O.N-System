@@ -13,7 +13,8 @@ function isNotFoundAnswer(answer) {
 }
 
 export async function handleMessage(state, msg) {
-  const { bot, templates, cache, queue, rateLimiter, provider, logger } = state;
+  const { bot, templates, cache, queue, rateLimiter, provider, logger, metrics } = state;
+  metrics.recordRequest();
   const chatId = msg.chat.id;
   const userId = String(msg.from.id);
   const text = String(msg.text || '').trim();
@@ -31,9 +32,11 @@ export async function handleMessage(state, msg) {
   const normalized = normalizeQuestion(text);
   const cached = cache.get(normalized);
   if (cached) {
+    metrics.recordCacheHit();
     logger.info('cache_hit', { userId, q: normalized.slice(0, 80) });
     return bot.sendMessage(chatId, cached.answer);
   }
+  metrics.recordCacheMiss();
 
   if (!queue.canAccept(userId)) return bot.sendMessage(chatId, templates.queueFull);
 
@@ -47,10 +50,15 @@ export async function handleMessage(state, msg) {
       if (!answer || isTechnicalFailure(answer)) answer = templates.backendError;
       if (isNotFoundAnswer(answer)) answer = templates.notFound;
       cache.set(normalized, { answer, sources: result?.sources || [] });
+      const latencyMs = Date.now() - started;
+      metrics.recordLatency(latencyMs);
       await bot.sendMessage(chatId, answer);
-      logger.info('query_ok', { userId, latencyMs: Date.now() - started, sources: result?.sources?.length || 0 });
+      logger.info('query_ok', { userId, latencyMs, notebook: result?.notebook, sources: result?.sources?.length || 0 });
     } catch (err) {
-      logger.error('query_error', { userId, latencyMs: Date.now() - started, error: err.message });
+      const latencyMs = Date.now() - started;
+      metrics.recordLatency(latencyMs);
+      metrics.recordProviderError();
+      logger.error('query_error', { userId, latencyMs, error: err.message });
       await bot.sendMessage(chatId, templates.backendError);
     }
   });
